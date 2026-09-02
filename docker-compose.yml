@@ -1,0 +1,67 @@
+version: "3.9"
+
+# ChainGuard — docker-compose
+#
+# Honest scope as of Sprint AI-1: `postgres` and `ai` are real, working
+# services. `backend` and `frontend` do NOT have Dockerfiles yet (checked
+# before writing this file — neither exists anywhere in the repo), so they
+# are documented below rather than declared as services that would fail to
+# build. Uncomment and complete them once those Dockerfiles exist.
+#
+# Run today: docker compose up postgres ai
+# (backend/frontend still run via `npm run dev` in their own directories,
+# per each service's own README, until they're containerized.)
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chainguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - chainguard_postgres_data:/var/lib/postgresql/data
+
+  ai:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      ENV: production
+      MODEL_DIR: models/weights
+      BACKEND_URL: http://backend:5000/api/v1
+      EVIDENCE_DIR: /shared_evidence
+      LOG_DIR: logs
+    volumes:
+      - chainguard_evidence:/shared_evidence
+      - chainguard_ai_models:/app/models/weights
+
+  # backend:
+  #   # NOT YET CONTAINERIZED — backend/Dockerfile does not exist yet.
+  #   # Planned shape once it does, per docs/chainguard-ai-technical-design-
+  #   # phase3a.md Step 4.9:
+  #   build: ./backend
+  #   depends_on: [postgres]
+  #   ports: ["5000:5000"]
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/chainguard?schema=public
+  #     AI_SERVICE_URL: http://ai:8000
+  #   volumes:
+  #     - chainguard_evidence:/app/src/uploads/evidence
+  #
+  # frontend:
+  #   # NOT YET CONTAINERIZED — frontend/Dockerfile does not exist yet.
+  #   build: ./frontend
+  #   ports: ["5173:80"]
+
+volumes:
+  chainguard_postgres_data:
+  chainguard_evidence:      # shared between ai and (eventually) backend — see Phase 3A design Step 4.5
+  chainguard_ai_models:
