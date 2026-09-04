@@ -1,0 +1,781 @@
+// ChainGuard - Prisma Schema
+// AI Powered End-to-End Examination Paper Integrity Monitoring System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------------
+
+enum Role {
+  ADMINISTRATOR
+  PRINTING_OFFICER
+  TRANSPORT_OFFICER
+  EXAM_CENTER_OFFICER
+  AI_SYSTEM
+  // --- Added in Phase 2 (additive only — nothing above this line changed) ---
+  CHIEF_EXAMINATION_OFFICER
+  STORAGE_OFFICER
+  AUDITOR
+  VIEWER
+}
+
+enum SealStatus {
+  SEALED
+  BROKEN
+  TAMPERED
+  OPENED
+}
+
+enum CameraStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  MAINTENANCE
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum CustodyEventType {
+  CREATED
+  QR_SCAN
+  HANDOVER
+  TRANSPORT_START
+  TRANSPORT_END
+  RECEIVED_AT_CENTER
+  OPENED
+  SEAL_BROKEN
+  DISCREPANCY
+  // Added Sprint 7 (Secure Chain of Custody & QR Workflow) — additive
+  // only, every pre-existing value and row is untouched.
+  VERIFIED          // a read-only QR verification lookup, not a custody-changing action
+  HANDOVER_ACCEPTED // the second half of a two-step handover — see ChainOfCustody.confirmed below
+  DAMAGED
+  TAMPERED
+  ARCHIVED
+  // Added QR Verification & Digital Authentication sprint (Phase 6) --
+  // a distinct event for "the QR itself was generated," logged right
+  // alongside CREATED at envelope creation (Phase 1 always generates a
+  // QR at that same moment) but tracked as its own timeline step since
+  // the requested custody narrative treats them as two separate,
+  // sequential moments.
+  QR_GENERATED
+  // Added Architectural Integration sprint (Phase 4/9). QR_ATTACHED sits
+  // between QR_PRINTED and PACKED per the user's explicit architectural
+  // decision. SEALED here is a distinct concept from SealStatus.SEALED
+  // (a different enum entirely, no collision) -- this is the *event* of
+  // sealing during preparation, not the envelope's current physical
+  // condition. CHECKPOINT is attributed to the transport session's own
+  // assigned officer (the user's explicit decision -- no synthetic
+  // system user). AI_VERIFIED and COMPLETED close out the workflow
+  // after a successful AI scan.
+  QR_PRINTED
+  QR_ATTACHED
+  PACKED
+  SEALED
+  CHECKPOINT
+  AI_VERIFIED
+  COMPLETED
+}
+
+// Added in Phase 2 — controlled vocabulary for AuditLog.action, instead of
+// a free-text string, so queries/filters can't silently typo past each other.
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_RESTORED
+  ROLE_CHANGED
+  PASSWORD_RESET
+  PASSWORD_CHANGED
+  ACCOUNT_ACTIVATED
+  ACCOUNT_DEACTIVATED
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  // Added Sprint Integration-1 (Envelope <-> Transport integration).
+  // No new column needed to reference the envelope -- the existing
+  // metadata Json? field already holds free-form context (see how
+  // auditLogRepository.create() is called for these below), the same
+  // way it already would for any other action here.
+  ENVELOPE_CREATED
+  TRANSPORT_STARTED
+  TRANSPORT_ENDED
+  // Added Integration Sprint 4 -- one shared action for both AI-tamper
+  // and transport-anomaly incidents (route deviation, vehicle stopped,
+  // GPS lost, battery low, checkpoint missed, late arrival, camera
+  // health). The specific kind is already captured in the Alert's own
+  // `category` and this log entry's `metadata`, so one generic action
+  // here is enough -- adding a distinct AuditAction per alert category
+  // would just be the same information stored twice.
+  INCIDENT_RECORDED
+}
+
+// ------------------------------------------------------------------
+// MODELS
+// ------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(EXAM_CENTER_OFFICER)
+  isActive     Boolean  @default(true)
+  refreshToken String?  // hashed refresh token for single-session rotation
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  envelopesCreated Envelope[]        @relation("EnvelopeCreatedBy")
+  // Architectural Integration sprint
+  examinationsOfficer   Examination[]   @relation("ExaminationOfficer")
+  examinationsCreated   Examination[]   @relation("ExaminationCreatedBy")
+  batchesGenerated      EnvelopeBatch[] @relation("BatchGeneratedBy")
+  custodyEvents    ChainOfCustody[]  @relation("CustodyOfficer")
+  custodyReceived  ChainOfCustody[]  @relation("CustodyToOfficer")
+  alertsResolved   Alert[]           @relation("AlertResolvedBy")
+  reportsGenerated Report[]          @relation("ReportGeneratedBy")
+
+  // --- Added in Phase 2 (all nullable — no existing row is affected) ---
+  employeeId       String?    @unique
+  department       String?
+  designation      String?
+  phone            String?
+  assignedCenter   String?
+  lastLoginAt      DateTime?
+  profileImagePath String?
+
+  // Soft delete is deliberately separate from `isActive`. `isActive` is the
+  // existing Activate/Deactivate toggle (Phase 1) — a soft-deleted user
+  // should never show up in normal listings at all, which is a different
+  // and stronger state than merely being deactivated.
+  deletedAt        DateTime?
+
+  // Self-relation: which admin created this user account. Nullable because
+  // self-registered users (via the existing /auth/register) have no creator.
+  createdById  String?
+  createdBy    User?      @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]     @relation("UserCreatedBy")
+
+  auditActions   AuditLog[] @relation("AuditActor")
+  auditedEvents  AuditLog[] @relation("AuditTarget")
+
+  transportSessions TransportSession[] @relation("TransportOfficer")
+
+  @@index([role])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// Added in Phase 2 — every administrative action, plus login/logout/failed
+// login, gets a row here. actorId is nullable because a failed login with a
+// wrong email has no valid user to attribute it to (the attempted email is
+// captured in metadata instead).
+model AuditLog {
+  id           String       @id @default(uuid())
+  action       AuditAction
+
+  actorId      String?
+  actor        User?        @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  targetUserId String?
+  targetUser   User?        @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  ipAddress    String?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+
+  @@index([actorId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+
+enum EnvelopeTransportStatus {
+  AT_REST
+  IN_TRANSIT
+  DELIVERED
+}
+
+// Added Architectural Integration sprint (Phase 1: Examination Setup).
+// Exam metadata created *before* any envelope exists -- deliberately a
+// separate model from Envelope, not new fields bolted onto it, since
+// one Examination legitimately has many envelopes (Phase 2's batch
+// generation) and the metadata (state/city/centre/date/session) is
+// naturally shared across all of them, not duplicated per envelope.
+model Examination {
+  id           String   @id @default(uuid())
+  state        String
+  city         String
+  district     String?
+  centre       String
+  examName     String
+  subject      String
+  examDate     DateTime
+  examTime     String   // free-form ("10:00 AM") -- exam start times are announced, not computed; no timezone-math is ever performed on this field
+  session      String?  // e.g. "Morning" / "Afternoon" -- optional, not every exam has multiple sessions in a day
+  envelopeCount Int     @default(0) // the number originally requested at setup time; the real, authoritative count of envelopes is envelopes.length, this is planning metadata only
+
+  officerId    String   // the officer assigned responsibility for this examination's envelopes (reuses the existing Role enum -- no new "Security Officer" role)
+  officer      User     @relation("ExaminationOfficer", fields: [officerId], references: [id])
+
+  createdById  String
+  createdBy    User     @relation("ExaminationCreatedBy", fields: [createdById], references: [id])
+
+  createdAt    DateTime @default(now())
+
+  batches      EnvelopeBatch[]
+  envelopes    Envelope[]
+
+  @@index([centre])
+  @@index([examDate])
+  @@map("examinations")
+}
+
+// Phase 2 (QR Generation) + the user's own Phase 7 decision ("introduce
+// an Envelope Batch concept"): one batch = one "Generate QR" click,
+// producing N envelopes for one Examination. Deliberately distinct from
+// Examination itself -- running batch generation twice for the same
+// Examination (e.g. 25 envelopes today, 5 more tomorrow) is two real,
+// separate batches sharing one Examination, not one batch resized.
+model EnvelopeBatch {
+  id             String      @id @default(uuid())
+  examinationId  String
+  examination    Examination @relation(fields: [examinationId], references: [id])
+
+  count          Int         // how many envelopes this specific batch generated
+
+  generatedById  String
+  generatedBy    User        @relation("BatchGeneratedBy", fields: [generatedById], references: [id])
+
+  // Print metadata, deliberately separate from ChainOfCustody -- the
+  // user's explicit instruction: repeated printing (re-running the same
+  // PDF export) updates these statistics rather than creating a new
+  // custody event each time. The *first* successful print is still what
+  // triggers the real QR_PRINTED custody event per envelope (see
+  // envelopeBatch.service.js's printBatch()) -- printCount === 0 is
+  // exactly how that function tells "first print" apart from "reprint."
+  printCount     Int         @default(0)
+  firstPrintedAt DateTime?
+  lastPrintedAt  DateTime?
+
+  createdAt      DateTime    @default(now())
+
+  envelopes      Envelope[]
+
+  @@index([examinationId])
+  @@map("envelope_batches")
+}
+
+// Phase 4/9: the pre-dispatch preparation lifecycle. A third, genuinely
+// distinct dimension from sealStatus (physical seal *condition*) and
+// transportStatus (where-in-transport) -- conflating this with either
+// would recreate the exact ambiguity transportStatus's own schema
+// comment already warned against (a SEALED envelope can be either
+// AT_REST or IN_TRANSIT; by the same logic, an envelope mid-preparation
+// and one already flagged TAMPERED are independent facts, not the same
+// axis). QR_GENERATED is the default because envelope creation always
+// generates a signed QR in the same step (unchanged since Phase 1 of
+// this whole project) -- there is no real "envelope exists with no QR
+// yet" state to represent.
+enum EnvelopePrepStatus {
+  QR_GENERATED
+  QR_PRINTED
+  QR_ATTACHED
+  PACKED
+  SEALED
+  READY_FOR_DISPATCH
+}
+
+model Envelope {
+  id         String     @id @default(uuid())
+  envelopeCode String   @unique // human readable Envelope ID
+  qrCode     String     @unique // encoded QR payload / token
+  qrImagePath String?
+  sealStatus SealStatus @default(SEALED)
+  // Added Sprint Integration-1 — distinct from sealStatus (a SEALED
+  // envelope can be either AT_REST or IN_TRANSIT; conflating the two
+  // would be semantically wrong, e.g. a sealed envelope sitting in a
+  // warehouse and a sealed envelope on a moving vehicle are different
+  // states this field distinguishes, sealStatus alone can't).
+  transportStatus EnvelopeTransportStatus @default(AT_REST)
+  // Architectural Integration sprint: the pre-dispatch preparation
+  // lifecycle -- see EnvelopePrepStatus's own comment for why this is a
+  // third, distinct field rather than folded into sealStatus.
+  prepStatus EnvelopePrepStatus @default(QR_GENERATED)
+  // Phase 8's actual gate for enabling the AI Scanner -- set the moment
+  // a real QR verification succeeds for this envelope (custody.service.js).
+  // Nullable: every envelope starts unverified, correctly, including
+  // every envelope that existed before this sprint.
+  qrVerifiedAt DateTime?
+
+  // Nullable: an envelope created through the original single-creation
+  // endpoint (still supported, unchanged) has neither -- only envelopes
+  // created via Phase 2's batch generation are linked to a real
+  // Examination/EnvelopeBatch.
+  examinationId String?
+  examination   Examination? @relation(fields: [examinationId], references: [id])
+  batchId       String?
+  batch         EnvelopeBatch? @relation(fields: [batchId], references: [id])
+
+  exam       String
+  subject    String
+  center     String
+
+  createdById String
+  createdBy   User     @relation("EnvelopeCreatedBy", fields: [createdById], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  custodyEvents ChainOfCustody[]
+  evidences     Evidence[]
+  alerts        Alert[]
+  detections    Detection[]
+  transportSessions TransportSession[]
+
+  @@index([sealStatus])
+  @@index([center])
+  @@index([prepStatus])
+  @@index([examinationId])
+  @@index([batchId])
+  @@map("envelopes")
+}
+
+model Camera {
+  id         String       @id @default(uuid())
+  name       String
+  ipAddress  String
+  location   String?
+  status     CameraStatus @default(OFFLINE)
+  fps        Int?
+  resolution String?
+  lastHeartbeat DateTime?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  detections Detection[]
+  alerts     Alert[]
+
+  @@index([status])
+  @@map("cameras")
+}
+
+model Detection {
+  id          String   @id @default(uuid())
+
+  // Made nullable in Sprint AI-4B: a manual envelope-photo scan (the
+  // on-demand Scanner flow) has no camera at all — only live/prerecorded
+  // feed detections do. A Detection now needs at least one of cameraId /
+  // envelopeId, enforced at the service layer (see detection.service.js),
+  // not by the schema itself.
+  cameraId    String?
+  camera      Camera?  @relation(fields: [cameraId], references: [id])
+
+  // Added in Sprint AI-4B, exactly as flagged in the Phase 3A design
+  // document, Step 4.8 — closes the gap that forced EnvelopeDetails.jsx's
+  // "AI Observations" panel to show an honest EmptyState since Phase 1.
+  envelopeId  String?
+  envelope    Envelope? @relation(fields: [envelopeId], references: [id])
+
+  prediction  String   // e.g. label produced by the AI model
+  confidence  Float
+  boundingBox Json     // { x, y, width, height }
+  imagePath   String?
+  timestamp   DateTime @default(now())
+
+  // Added Integration Sprint 3: which real transport session (if any)
+  // this scan was performed under, and where the vehicle last reported
+  // being, at scan time. Nullable — a live/prerecorded camera-feed
+  // detection has neither (cameraId is set instead); a manual Scanner
+  // upload with no delivered transport history behind it (shouldn't
+  // normally happen once the new DELIVERED gate is enforced, but the
+  // field itself doesn't assume it) also has none.
+  transportSessionId String?
+  transportSession    TransportSession? @relation(fields: [transportSessionId], references: [id])
+  latitude    Float?
+  longitude   Float?
+
+  alerts      Alert[]
+
+  createdAt   DateTime @default(now())
+
+  @@index([cameraId])
+  @@index([envelopeId])
+  @@index([timestamp])
+  @@map("detections")
+}
+
+enum AlertCategory {
+  ROUTE_DEVIATION
+  VEHICLE_STOPPED
+  LATE_ARRIVAL
+  GPS_SIGNAL_LOST
+  BATTERY_LOW
+  CHECKPOINT_MISSED
+  // Added Sprint 8 (Part 6, "Camera Health... Generate alerts") — additive
+  // only, every existing value and row untouched.
+  CAMERA_OFFLINE
+  CAMERA_LOW_FPS
+  // Added QR Verification & Digital Authentication sprint (Phase 9).
+  // "Wrong route" deliberately reuses the existing ROUTE_DEVIATION
+  // category above rather than adding a duplicate concept — a QR-scan-
+  // triggered route check and a GPS-continuous deviation check both mean
+  // "this envelope is somewhere it shouldn't be"; the alert's own
+  // description text distinguishes how each was detected.
+  UNKNOWN_ENVELOPE   // QR code (or the string it decoded to) matches no envelope
+  SIGNATURE_FAILURE  // envelope found, but the QR's signature doesn't verify -- forged or corrupted
+  DUPLICATE_SCAN     // the same envelope scanned again unexpectedly soon by a different officer/device
+  EXPIRED_QR         // envelope's own custody history shows it already ARCHIVED
+  INVALID_QR         // scanned content doesn't parse as a QR this system issued at all
+  // Added Architectural Integration sprint (Phase 7 refinement) -- a
+  // real, distinct concept from ROUTE_DEVIATION above: compares the
+  // envelope's assigned examination centre against where it's actually
+  // being received, not a GPS position against a route corridor.
+  WRONG_CENTRE
+}
+
+model Alert {
+  id         String        @id @default(uuid())
+  severity   AlertSeverity @default(MEDIUM)
+  status     AlertStatus   @default(OPEN)
+  title      String
+  description String?
+
+  // Added Sprint 6 ("Smart Alert Engine" — alert categories). Nullable:
+  // every alert from before this sprint (AI tamper alerts, and Sprint 5's
+  // GPS alerts) has no category and that's correct, not a gap to
+  // backfill — category only distinguishes the six Sprint 6 alert types
+  // from each other and from the pre-existing AI-detection alert path.
+  // Deliberately a field on the existing Alert model, not a second
+  // "TransportAlert" table — this project has had exactly one alert
+  // store since Phase 1, and splitting it now would mean every consumer
+  // of alerts (AlertCenter.jsx, dashboard tamperAlerts count, Sprint 5's
+  // own liveAlerts count) would need to query two tables instead of one.
+  category   AlertCategory?
+
+  detectionId String?
+  detection   Detection? @relation(fields: [detectionId], references: [id])
+
+  cameraId   String?
+  camera     Camera?    @relation(fields: [cameraId], references: [id])
+
+  envelopeId String?
+  envelope   Envelope?  @relation(fields: [envelopeId], references: [id])
+
+  resolvedById String?
+  resolvedBy   User?    @relation("AlertResolvedBy", fields: [resolvedById], references: [id])
+  resolvedTime DateTime?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  evidences  Evidence[]
+
+  @@index([status])
+  @@index([severity])
+  @@map("alerts")
+}
+
+model ChainOfCustody {
+  id         String            @id @default(uuid())
+  envelopeId String
+  envelope   Envelope          @relation(fields: [envelopeId], references: [id])
+
+  eventType  CustodyEventType
+
+  officerId  String
+  officer    User              @relation("CustodyOfficer", fields: [officerId], references: [id])
+
+  // Added Sprint 7 — the two-step handover workflow (Officer A initiates
+  // -> Officer B scans + accepts). Nullable: every event type except
+  // HANDOVER/HANDOVER_ACCEPTED has no "to" officer, correctly. Default
+  // relation name follows this file's own established convention
+  // ("CustodyOfficer", "TransportOfficer", etc.).
+  toOfficerId String?
+  toOfficer   User?             @relation("CustodyToOfficer", fields: [toOfficerId], references: [id])
+
+  // Whether a HANDOVER is confirmed. Defaults true so every event type
+  // that was never a two-step process (CREATED, QR_SCAN, OPENED, ...) —
+  // and every row that existed before this sprint — is correctly "not
+  // pending" without needing a backfill. A freshly-initiated HANDOVER
+  // explicitly sets this false until the corresponding
+  // HANDOVER_ACCEPTED event confirms it (see custody.service.js).
+  confirmed  Boolean           @default(true)
+
+  location   String
+  // Added Sprint 7 ("GPS Integration" — real coordinates alongside the
+  // existing free-text location label, not a replacement for it: a
+  // manual desk handover has no meaningful GPS fix, while a scan
+  // performed during active transport does).
+  latitude   Float?
+  longitude  Float?
+  // Added Sprint 7 (Part 6, "device" in the audit trail) — captured from
+  // the request's User-Agent header at scan time, not user-supplied.
+  device     String?
+  // Added QR Verification & Digital Authentication sprint (Phase 7,
+  // "Scan History... IP address if available"). Nullable -- every event
+  // before this sprint, and any future event where the caller genuinely
+  // has no IP to report, is correctly "unknown" rather than a required
+  // backfill.
+  ipAddress  String?
+
+  remarks    String?
+  timestamp  DateTime          @default(now())
+
+  @@index([envelopeId])
+  @@index([timestamp])
+  @@index([toOfficerId])
+  @@map("chain_of_custody")
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  title          String
+  type           String   // e.g. "INCIDENT", "DAILY_SUMMARY", "ENVELOPE_AUDIT"
+  filters        Json?
+  filePath       String?
+  // Added Sprint 8, Part 11 — real, computed report content (the actual
+  // aggregated figures), stored as JSON. Nullable: every report row
+  // created before this sprint has none, correctly (report.service.js's
+  // generate() was, until this sprint, an honest stub that only wrote
+  // title/type/filters — its own comment said as much).
+  content        Json?
+
+  generatedById  String
+  generatedBy    User     @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+
+  createdAt      DateTime @default(now())
+
+  @@index([type])
+  @@map("reports")
+}
+
+model Evidence {
+  id         String   @id @default(uuid())
+  envelopeId String?
+  envelope   Envelope? @relation(fields: [envelopeId], references: [id])
+
+  alertId    String?
+  alert      Alert?   @relation(fields: [alertId], references: [id])
+
+  fileType   String   // "IMAGE" | "VIDEO" | "DOCUMENT"
+  filePath   String
+  hash       String?  // integrity checksum (e.g. sha256) of the stored file
+  description String?
+
+  // Added Integration Sprint 3 -- same reasoning as Detection.transportSessionId.
+  transportSessionId String?
+  transportSession    TransportSession? @relation(fields: [transportSessionId], references: [id])
+
+  createdAt  DateTime @default(now())
+
+  @@index([envelopeId])
+  @@index([alertId])
+  @@map("evidence")
+}
+
+// =====================================================================
+// Sprint 5 — Live GPS Tracking. Purely additive: no existing model,
+// field, enum, or relation above this line was changed. Envelope and
+// User both gain new reverse relations only (transportSessions), which
+// Prisma requires for the FK but which nothing existing reads or is
+// affected by.
+// =====================================================================
+
+enum VehicleStatus {
+  AVAILABLE
+  IN_TRANSIT
+  OFFLINE
+  MAINTENANCE
+}
+
+enum TransportStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model Vehicle {
+  id            String    @id @default(uuid())
+  vehicleNumber String    @unique
+  driverName    String
+  status        VehicleStatus @default(AVAILABLE)
+
+  sessions      TransportSession[]
+
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+  @@map("vehicles")
+}
+
+model TransportSession {
+  id          String   @id @default(uuid())
+
+  envelopeId  String
+  envelope    Envelope @relation(fields: [envelopeId], references: [id])
+
+  officerId   String
+  officer     User     @relation("TransportOfficer", fields: [officerId], references: [id])
+
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+
+  // Added Sprint 6 ("Route Deviation Detection" needs to know the
+  // *expected* route to compare against). Nullable — every Sprint 5
+  // session has no assigned route and that's fine; deviation/delay
+  // detection simply doesn't run for a session with routeId null,
+  // exactly like Sprint 5's own envelopeId/cameraId nullability pattern
+  // on Detection.
+  routeId     String?
+  route       TransportRoute? @relation(fields: [routeId], references: [id])
+
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  status      TransportStatus @default(ACTIVE)
+
+  locations       GPSLocation[]
+  checkpoints     TransportCheckpoint[]
+  geofenceEvents  GeofenceEvent[]
+  // Added Integration Sprint 3 -- see Detection.transportSessionId.
+  detections      Detection[]
+  evidence        Evidence[]
+
+  @@index([envelopeId])
+  @@index([officerId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([routeId])
+  @@map("transport_sessions")
+}
+
+model GPSLocation {
+  id           String   @id @default(uuid())
+
+  sessionId    String
+  session      TransportSession @relation(fields: [sessionId], references: [id])
+
+  latitude     Float
+  longitude    Float
+  speed        Float?   // km/h
+  accuracy     Float?   // meters
+  heading      Float?   // degrees, 0-360
+  batteryLevel Int?     // percent, 0-100
+
+  timestamp    DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, timestamp])
+  @@map("gps_locations")
+}
+
+model TransportCheckpoint {
+  id             String   @id @default(uuid())
+
+  sessionId      String
+  session        TransportSession @relation(fields: [sessionId], references: [id])
+
+  checkpointName String
+  latitude       Float
+  longitude      Float
+  reachedAt      DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("transport_checkpoints")
+}
+
+// --- Sprint 6: Geofencing, Route Deviation & Smart Transport Alerts ---
+
+// A named, reusable route definition — "Store routes in PostgreSQL"
+// (Sprint 6, ROUTE PLANNING). Distinct from Sprint 5's KNOWN_CHECKPOINTS
+// (a hardcoded reference constant used purely for the map/simulator
+// display) — a TransportRoute is real, queryable, and is what
+// TransportSession.routeId points at for deviation/delay detection.
+model TransportRoute {
+  id                       String   @id @default(uuid())
+  name                     String
+  description              String?
+  // Used for Late Arrival detection: expected arrival = startTime + this,
+  // per session. A route-level property (not per-session) since it's a
+  // property of the route itself ("this route normally takes ~45min"),
+  // shared by every session that uses it.
+  estimatedDurationMinutes Int      @default(45)
+
+  checkpoints  RouteCheckpoint[]
+  sessions     TransportSession[]
+
+  createdAt    DateTime @default(now())
+
+  @@map("transport_routes")
+}
+
+// The ordered waypoints of a route, each with its own geofence radius
+// ("Configurable radius. Default: 250 meters" — Sprint 6, GEOFENCING).
+model RouteCheckpoint {
+  id            String   @id @default(uuid())
+
+  routeId       String
+  route         TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  name          String
+  latitude      Float
+  longitude     Float
+  sequence      Int      // ordering within the route, 0-based
+  radiusMeters  Int      @default(250)
+
+  createdAt     DateTime @default(now())
+
+  @@index([routeId])
+  @@map("route_checkpoints")
+}
+
+enum GeofenceEventType {
+  ENTERED
+  EXITED
+}
+
+// Per-session geofence transitions — "Entered Geofence"/"Exited Geofence"
+// timeline events (Sprint 6, TIMELINE). Distinct from TransportCheckpoint
+// (which records a checkpoint being *reached*, i.e. entered, once per
+// session, from Sprint 5) — a GeofenceEvent records every entry AND exit,
+// including a vehicle that passes through a checkpoint's radius without
+// stopping, or the same checkpoint being re-entered.
+model GeofenceEvent {
+  id             String   @id @default(uuid())
+
+  sessionId      String
+  session        TransportSession @relation(fields: [sessionId], references: [id])
+
+  checkpointName String
+  eventType      GeofenceEventType
+  latitude       Float
+  longitude      Float
+  timestamp      DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("geofence_events")
+}

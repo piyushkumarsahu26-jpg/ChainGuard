@@ -1,0 +1,18 @@
+# ChainGuard AI Service — core dependencies
+#
+# This file contains ONLY what Sprint AI-1's actual code imports: the
+# FastAPI application skeleton, configuration, logging, and the model
+# registry (which is real file I/O, not ML). Heavy ML dependencies
+# (ultralytics, torch, opencv, albumentations, onnx) are intentionally
+# NOT here yet — see requirements-ml.txt for why, and when.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+python-multipart==0.0.20
+
+# Testing
+pytest==8.3.4
+httpx==0.28.1

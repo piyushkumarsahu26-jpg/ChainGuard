@@ -1,0 +1,196 @@
+{
+  "experiments": [
+    {
+      "experimentId": "smoke_test_6bc0803a",
+      "experimentName": "smoke_test",
+      "status": "completed",
+      "startedAt": "2026-08-01T07:31:52.446757+00:00",
+      "completedAt": "2026-08-01T07:32:18.956467+00:00",
+      "durationSeconds": 26.50971,
+      "datasetVersion": "v1",
+      "modelVersion": null,
+      "config": {
+        "dataset_manifest": "datasets/manifest.csv",
+        "dataset_root": "datasets",
+        "train_split": 0.8,
+        "base_weights": "yolov8n.pt",
+        "image_size": 64,
+        "epochs": 2,
+        "batch_size": 4,
+        "learning_rate": 0.01,
+        "optimizer": "auto",
+        "weight_decay": 0.0005,
+        "confidence_threshold": 0.25,
+        "seed": 42,
+        "resume_from": null,
+        "experiment_name": "smoke_test",
+        "generator_config_used": "datasets/configs/sample.yaml",
+        "runs_dir": "training/runs"
+      },
+      "environment": {
+        "python_version": "3.12.3",
+        "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+        "torch_version": "2.5.1+cu124",
+        "torchvision_version": "0.20.1+cu124",
+        "ultralytics_version": "8.3.55",
+        "numpy_version": "2.5.1",
+        "cuda_available": false,
+        "device_used": "cpu"
+      },
+      "metrics": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "mAP50": 0.0,
+        "mAP50_95": 0.0,
+        "f1": 0.0
+      },
+      "bestEpoch": null,
+      "runDir": "training/runs/smoke_test_6bc0803a",
+      "error": null
+    },
+    {
+      "experimentId": "repair_full_99503f10",
+      "experimentName": "repair_full",
+      "status": "completed",
+      "startedAt": "2026-08-01T19:06:54.282828+00:00",
+      "completedAt": "2026-08-01T19:12:10.370949+00:00",
+      "durationSeconds": 316.088121,
+      "datasetVersion": "v2",
+      "modelVersion": null,
+      "config": {
+        "dataset_manifest": "datasets/manifest.csv",
+        "dataset_root": "datasets",
+        "train_split": 0.85,
+        "base_weights": "yolov8n.pt",
+        "image_size": 96,
+        "epochs": 40,
+        "batch_size": 16,
+        "learning_rate": 0.01,
+        "optimizer": "auto",
+        "weight_decay": 0.0005,
+        "confidence_threshold": 0.25,
+        "seed": 7,
+        "resume_from": null,
+        "experiment_name": "repair_full",
+        "generator_config_used": "datasets/configs/repair_training.yaml",
+        "runs_dir": "training/runs"
+      },
+      "environment": {
+        "python_version": "3.12.3",
+        "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+        "torch_version": "2.5.1+cu124",
+        "torchvision_version": "0.20.1+cu124",
+        "ultralytics_version": "8.4.115",
+        "numpy_version": "2.5.1",
+        "cuda_available": false,
+        "device_used": "cpu"
+      },
+      "metrics": {
+        "precision": 0.9269,
+        "recall": 0.88333,
+        "mAP50": 0.91856,
+        "mAP50_95": 0.64172,
+        "f1": 0.9045906619600824
+      },
+      "bestEpoch": 35,
+      "runDir": "training/runs/repair_full_99503f10",
+      "error": null
+    },
+    {
+      "experimentId": "ai_improvement_phase_v1_76a16e5d",
+      "experimentName": "ai_improvement_phase_v1",
+      "status": "completed",
+      "startedAt": "2026-08-05T14:10:19.986105+00:00",
+      "completedAt": "2026-08-05T14:10:19.986124+00:00",
+      "durationSeconds": null,
+      "datasetVersion": "v3",
+      "modelVersion": "ai_improvement_phase_v1",
+      "config": {
+        "dataset_manifest": "datasets/manifest.csv",
+        "dataset_root": "datasets",
+        "train_split": 0.85,
+        "base_weights": "yolov8n.pt",
+        "image_size": 128,
+        "epochs": 40,
+        "batch_size": 24,
+        "learning_rate": 0.01,
+        "optimizer": "auto",
+        "weight_decay": 0.0005,
+        "confidence_threshold": 0.25,
+        "nms_iou_threshold": 0.5,
+        "hsv_h": 0.015,
+        "hsv_s": 0.5,
+        "hsv_v": 0.3,
+        "degrees": 8.0,
+        "translate": 0.1,
+        "scale": 0.5,
+        "fliplr": 0.5,
+        "flipud": 0.0,
+        "mosaic": 1.0,
+        "mixup": 0.0,
+        "seed": 20,
+        "resume_from": null,
+        "experiment_name": "ai_improvement_phase_v1",
+        "generator_config_used": "datasets/configs/ai_improvement_phase.yaml",
+        "runs_dir": "training/runs"
+      },
+      "environment": {
+        "python_version": "3.12.3",
+        "platform": "Linux-6.18.5-fc-v18-x86_64-with-glibc2.39",
+        "torch_version": "2.5.1+cu124",
+        "torchvision_version": "0.20.1+cu124",
+        "ultralytics_version": "8.4.115",
+        "numpy_version": "2.5.1",
+        "cuda_available": false,
+        "device_used": "cpu"
+      },
+      "metrics": {
+        "precision": 0.9018834424682192,
+        "recall": 0.9335188620902907,
+        "mAP50": 0.9472328546092641,
+        "mAP50_95": 0.6174942188638304,
+        "f1": 0.9174285145659375,
+        "perClass": {
+          "SAFE": {
+            "precision": 0.8722,
+            "recall": 0.9752,
+            "mAP50": 0.9586
+          },
+          "TORN": {
+            "precision": 0.9328,
+            "recall": 0.9909,
+            "mAP50": 0.9903
+          },
+          "OPENED": {
+            "precision": 0.9859,
+            "recall": 1.0,
+            "mAP50": 0.995
+          },
+          "CRUSHED": {
+            "precision": 1.0,
+            "recall": 0.994,
+            "mAP50": 0.995
+          },
+          "TAPED": {
+            "precision": 0.9074,
+            "recall": 0.8333,
+            "mAP50": 0.8656
+          },
+          "PARTIAL_DAMAGE": {
+            "precision": 0.7704,
+            "recall": 0.5952,
+            "mAP50": 0.7985
+          },
+          "SEAL_OPEN": {
+            "precision": 0.9756,
+            "recall": 0.9091,
+            "mAP50": 0.9851
+          }
+        }
+      },
+      "bestEpoch": 39,
+      "runDir": "training/runs/ai_improvement_phase_v1_76a16e5d",
+      "error": null
+    }
+  ]
+}

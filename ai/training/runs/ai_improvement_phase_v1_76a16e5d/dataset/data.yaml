@@ -1,0 +1,11 @@
+path: /home/claude/chainguard_work/ai/training/runs/ai_improvement_phase_v1_76a16e5d/dataset
+train: images/train
+val: images/val
+names:
+  0: SAFE
+  1: TORN
+  2: OPENED
+  3: CRUSHED
+  4: TAPED
+  5: PARTIAL_DAMAGE
+  6: SEAL_OPEN

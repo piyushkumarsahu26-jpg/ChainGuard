@@ -1,0 +1,53 @@
+# AI Improvement Phase: the real training run, on the expanded 1,888-image
+# dataset (7 classes, up from 6; ~4.8x the prior repair run's 390 images).
+#
+# Hyperparameter tuning decisions, stated here rather than left implicit:
+# - epochs raised from the prior repair's 35 to 45 -- more data
+#   benefits from a bit more training time to actually converge on it.
+# - batch_size raised from 16 to 24 -- calibration on this larger dataset
+#   showed this comfortably fits real per-step timing without thrashing.
+# - image_size raised from 96 to 128 -- a real step up in resolution,
+#   still far below production scale (640) but a genuine improvement,
+#   chosen to stay within this sandbox's real CPU-only time budget.
+# - nms_iou_threshold lowered from Ultralytics' own 0.7 default to 0.5 --
+#   this project's real use case is one envelope per image with one
+#   dominant damage signature, not multiple overlapping objects to
+#   distinguish; a lower IoU threshold suppresses near-duplicate boxes on
+#   the same envelope more aggressively, which is the right tradeoff here.
+# - degrees raised from 0 to 6 -- a small amount of Ultralytics' own
+#   on-the-fly rotation, additive on top of (not a replacement for) the
+#   dataset's own baked-in perspective variety, for extra angle diversity
+#   without excessive combined augmentation.
+# - hsv_v lowered slightly from 0.4 to 0.3 -- the dataset's own lighting/
+#   shadow pipeline already varies brightness meaningfully per image;
+#   stacking the full-strength default on top of that risked
+#   over-augmenting value/brightness specifically.
+# - mixup left at 0 (disabled) -- blending two images' pixels together is
+#   a real risk of confusing a small, class-imbalanced-by-nature detection
+#   task like this one, not a clear win assumed without evidence.
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.85
+base_weights: yolov8n.pt
+image_size: 128
+epochs: 45
+batch_size: 24
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+nms_iou_threshold: 0.5
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.3
+degrees: 6.0
+translate: 0.1
+scale: 0.5
+fliplr: 0.5
+flipud: 0.0
+mosaic: 1.0
+mixup: 0.0
+seed: 20
+experiment_name: ai_improvement_v1
+generator_config_used: datasets/configs/ai_improvement_phase.yaml
+runs_dir: training/runs

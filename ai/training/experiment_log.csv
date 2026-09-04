@@ -1,0 +1,2 @@
+experimentId,experimentName,status,startedAt,completedAt,durationSeconds,datasetVersion,modelVersion,mAP50,precision,recall,f1
+smoke_test_6bc0803a,smoke_test,completed,2026-08-01T07:31:52.446757+00:00,2026-08-01T07:32:18.956467+00:00,26.50971,v1,,0.0,0.0,0.0,0.0

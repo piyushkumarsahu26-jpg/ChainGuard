@@ -1,0 +1,10 @@
+path: /home/claude/chainguard_work/ai/training/runs/smoke_test_6bc0803a/dataset
+train: images/train
+val: images/val
+names:
+  0: SAFE
+  1: TORN
+  2: OPENED
+  3: CRUSHED
+  4: TAPED
+  5: PARTIAL_DAMAGE

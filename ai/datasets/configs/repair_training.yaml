@@ -1,0 +1,29 @@
+# Sprint AI-4B repair run — meaningfully larger than the Sprint AI-3 smoke
+# test (30 images, 2 epochs) but bounded to what this sandbox can train in
+# a few minutes on CPU. NOT claimed to be production-scale (that's still
+# datasets/configs/production_example.yaml, 500/class at 640x640) — this
+# is a real, honest middle ground: enough data and epochs for the model to
+# actually learn the six damage classes' visual signatures, not just prove
+# the pipeline runs.
+image_size: [96, 96]
+images_per_class:
+  SAFE: 60
+  TORN: 60
+  OPENED: 60
+  CRUSHED: 60
+  TAPED: 60
+  PARTIAL_DAMAGE: 60
+output_dir: datasets/synthetic
+seed: 7
+apply_augmentation: true
+augmentation:
+  rotation_degrees: 15.0
+  brightness_range: [0.7, 1.3]
+  contrast_range: [0.7, 1.3]
+  color_jitter_range: [0.8, 1.2]
+  gaussian_noise_std: 8.0
+  blur_probability: 0.4
+  motion_blur_probability: 0.2
+  jpeg_quality_range: [40, 85]
+  variants_per_image: 3
+generator_version: v2.0.0-repair

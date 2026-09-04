@@ -1,0 +1,20 @@
+# The real Sprint AI-4B repair run: 390 images (65/class, 13x the Sprint
+# AI-3 smoke test's 30), 96x96, 40 epochs (vs. the smoke test's 2).
+# Calibration (3 epochs on this same dataset) already showed real learning
+# (precision 0.876, mAP50 0.375, vs. 0.0 across the board for the smoke
+# test) — this run gives it enough epochs to converge further.
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.85
+base_weights: yolov8n.pt
+image_size: 96
+epochs: 40
+batch_size: 16
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+seed: 7
+experiment_name: repair_full
+generator_config_used: datasets/configs/repair_training.yaml
+runs_dir: training/runs

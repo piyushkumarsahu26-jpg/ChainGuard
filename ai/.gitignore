@@ -1,0 +1,29 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+logs/
+*.log
+
+# Model weights are large binary artifacts and versioned via the manifest,
+# not git. manifest.json itself IS tracked (it's small, human-readable
+# metadata) — only the weight files themselves are ignored.
+models/weights/*.pt
+models/weights/*.onnx
+
+# Dataset images: the small sample dataset shipped in datasets/synthetic/
+# (Sprint AI-2's deliverable, ~30 images) is intentionally NOT ignored —
+# it's meant to be committed. If you regenerate a large-scale dataset
+# locally (datasets/configs/production_example.yaml or similar — thousands
+# of files), consider whether you actually want that committed; this
+# project doesn't use Git LFS/DVC, so a multi-thousand-image dataset
+# should probably be regenerated on demand (see datasets/README.md) rather
+# than committed, but that's a per-repo decision, not enforced here.
+datasets/pending_review/*
+!datasets/pending_review/.gitkeep
+
+experiments/*
+!experiments/.gitkeep
+!experiments/README.md

@@ -1,0 +1,70 @@
+# ChainGuard AI Service — training/inference dependencies (Sprint AI-3)
+#
+# Every version here was actually installed and verified working together
+# in this sandbox — not copied from Sprint AI-1's speculative placeholder
+# list. Notable, deliberate departures from that earlier list:
+#
+# - opencv-python-headless, not opencv-python: functionally identical for
+#   training/inference (no GUI window support needed, which is all the
+#   non-headless build adds); avoids pulling in X11/GTK system libraries
+#   this service never uses.
+# - The nvidia-*-cu12 packages are required even for CPU-only training —
+#   this specific torch wheel (from plain PyPI, since download.pytorch.org
+#   is outside this project's network allowlist) eagerly dlopen()s CUDA
+#   shared libraries at import time regardless of whether a GPU is
+#   present. torch.cuda.is_available() correctly reports False on
+#   GPU-less hardware once these are installed; training then runs on CPU
+#   automatically (see training/train.py's device detection).
+# - numpy is NOT pinned here — it's pinned once in requirements-dataset.txt
+#   (bumped to 2.5.1 during this sprint specifically for compatibility
+#   with scipy/opencv-python-headless below; re-verified against the full
+#   Sprint AI-1 + AI-2 test suite before changing that pin).
+#
+# Install: pip install -r requirements.txt -r requirements-dataset.txt -r requirements-ml.txt
+
+torch==2.5.1
+torchvision==0.20.1
+nvidia-cublas-cu12==12.4.5.8
+nvidia-cuda-cupti-cu12==12.4.127
+nvidia-cuda-nvrtc-cu12==12.4.127
+nvidia-cuda-runtime-cu12==12.4.127
+nvidia-cudnn-cu12==9.1.0.70
+nvidia-cufft-cu12==11.2.1.3
+nvidia-curand-cu12==10.3.5.147
+nvidia-cusolver-cu12==11.6.1.9
+nvidia-cusparse-cu12==12.3.1.170
+nvidia-nccl-cu12==2.21.5
+nvidia-nvjitlink-cu12==12.4.127
+nvidia-nvtx-cu12==12.4.127
+triton==3.1.0
+sympy==1.13.1
+setuptools==83.0.0
+
+ultralytics==8.4.115
+# Bumped from 8.3.55 (Sprint AI-1's original pin) during the Sprint AI-4B
+# model-repair investigation: 8.3.55's metrics code calls the numpy-1.x-only
+# np.trapz, removed entirely in numpy>=2.0 (which requirements-dataset.txt
+# pins, for an unrelated scipy/opencv-headless compatibility reason from
+# Sprint AI-3). The Sprint AI-3 smoke-test run never hit this — its
+# validation set was too degenerate (near-empty, 0.0 metrics) to reach the
+# exact code path that calls it. A real training run with real validation
+# data does reach it. 8.4.115 checks the numpy version and calls
+# np.trapezoid on numpy>=2.0 automatically — confirmed by reading its
+# source before pinning, not assumed from a changelog.
+ultralytics-thop==2.1.6
+opencv-python-headless==5.0.0.93
+matplotlib==3.11.1
+scipy==1.17.1
+pandas==3.0.5
+seaborn==0.13.2
+onnx==1.22.0
+onnxslim==0.1.94
+onnxruntime==1.28.0
+# onnxslim/onnxruntime: Ultralytics' exporter tries to auto-install these
+# itself if missing (for ONNX simplification), using a bare `pip install`
+# that fails under PEP 668 (externally-managed-environment) rather than
+# targeting the active venv — export still succeeds without them, just
+# skips simplification. Pinning them here so a normal
+# `pip install -r requirements-ml.txt` avoids hitting that mid-export
+# failure at all. Found and fixed during this sprint's real export test —
+# see docs/chainguard-sprint-ai3-completion-report.md.

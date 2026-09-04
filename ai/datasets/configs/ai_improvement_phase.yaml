@@ -1,0 +1,33 @@
+# AI Improvement Phase: dataset expansion.
+# ~1,500 images (7 classes x ~214 each) at 128x128 -- a real, meaningful
+# step up from the prior repair run's 390 images at 96x96 (roughly 4x the
+# data, plus a larger resolution), chosen to be achievable on this
+# sandbox's CPU-only compute within a reasonable time budget while still
+# demonstrating genuine improvement, not a claim of production scale.
+# "prepared to scale much further later" means this config, not the
+# architecture, is the thing to change for a bigger run -- everything
+# downstream (training/evaluation/promotion) reads whatever manifest this
+# produces without assuming a fixed size.
+image_size: [128, 128]
+images_per_class:
+  SAFE: 214
+  TORN: 214
+  OPENED: 214
+  CRUSHED: 214
+  TAPED: 214
+  PARTIAL_DAMAGE: 214
+  SEAL_OPEN: 214
+output_dir: datasets/synthetic
+seed: 20
+apply_augmentation: true
+augmentation:
+  rotation_degrees: 18.0
+  brightness_range: [0.6, 1.4]
+  contrast_range: [0.6, 1.4]
+  color_jitter_range: [0.75, 1.25]
+  gaussian_noise_std: 10.0
+  blur_probability: 0.45
+  motion_blur_probability: 0.25
+  jpeg_quality_range: [35, 90]
+  variants_per_image: 3
+generator_version: v3.0.0-ai-improvement

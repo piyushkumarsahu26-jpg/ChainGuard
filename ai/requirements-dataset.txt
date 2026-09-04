@@ -1,0 +1,19 @@
+# ChainGuard AI Service — dataset platform dependencies (Sprint AI-2)
+#
+# Deliberately lighter than requirements-ml.txt: Pillow + numpy handle
+# every generation/augmentation/validation technique this sprint actually
+# implements (see docs/chainguard-sprint-ai2-completion-report.md for the
+# full rationale). No opencv, no albumentations, no torch — none of this
+# sprint's code needs bbox-aware training-time augmentation, since no
+# training exists yet.
+
+Pillow==11.0.0
+numpy==2.5.1
+PyYAML==6.0.2
+ImageHash==4.3.1
+# numpy pinned to 2.5.1 (was 1.26.4 in the original Sprint AI-2 release) —
+# bumped during Sprint AI-3 integration testing after discovering that
+# scipy>=1.18 and opencv-python-headless>=5.0 (both pulled in by
+# requirements-ml.txt) require numpy>=2.0. Re-verified against the full
+# Sprint AI-1 + Sprint AI-2 test suite before changing this pin — see
+# docs/chainguard-sprint-ai3-completion-report.md.

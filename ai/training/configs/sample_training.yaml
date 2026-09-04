@@ -1,0 +1,20 @@
+# Smoke-test config — proves the training platform works end-to-end
+# against Sprint AI-2's 30-image sample dataset. NOT a production training
+# run: 2 epochs, tiny image size, on ~24 training images is nowhere near
+# enough to produce a useful detector. See
+# training/configs/production_example.yaml for actual training scale.
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.8
+base_weights: yolov8n.pt
+image_size: 64
+epochs: 2
+batch_size: 4
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+seed: 42
+experiment_name: smoke_test
+generator_config_used: datasets/configs/sample.yaml
+runs_dir: training/runs

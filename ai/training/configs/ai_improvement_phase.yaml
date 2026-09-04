@@ -1,0 +1,40 @@
+# AI Improvement Phase: full training run on the expanded 1,888-image
+# dataset (1,498 new images across 7 classes, including the new
+# SEAL_OPEN class). See docs/chainguard-ai-improvement-phase-report.md
+# for the full reasoning behind every choice below.
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.85
+base_weights: yolov8n.pt
+image_size: 128
+epochs: 40
+batch_size: 24
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+seed: 20
+experiment_name: ai_improvement_phase_v1
+generator_config_used: datasets/configs/ai_improvement_phase.yaml
+runs_dir: training/runs
+resume_from: training/runs/ai_improvement_phase_v1_76a16e5d/weights/last.pt
+
+# NMS: default Ultralytics is 0.7. This dataset rarely has more than one
+# damage region per image, so NMS aggressiveness isn't hugely
+# consequential either way -- 0.5 is a moderate, deliberately-chosen
+# starting point rather than an inherited default, refined further after
+# evaluation based on the real precision/recall tradeoff observed.
+nms_iou_threshold: 0.5
+
+# Training-time augmentation -- each value reasoned individually, not
+# left at Ultralytics' defaults out of inertia:
+hsv_h: 0.015          # kept at default -- envelope hue shouldn't vary wildly regardless
+hsv_s: 0.5            # reduced from 0.7 -- the generator already applies its own wide color-variation step; stacking two strong saturation jitters risks washing out detail
+hsv_v: 0.3            # reduced from 0.4 -- same reasoning, the generator's own lighting-strength range was just widened to 0.10-0.48
+degrees: 8.0          # small non-zero rotation -- complements the generator's perspective warp (a different augmentation *type*, not redundant with it)
+translate: 0.1        # default -- adds temporal diversity (same base image seen with a different crop each epoch), complementary to per-generation position variety
+scale: 0.5             # default, same reasoning as translate
+fliplr: 0.5            # default -- a horizontally-flipped torn/taped envelope is still clearly torn/taped, a physically valid augmentation
+flipud: 0.0            # deliberately off -- OPENED's flap-at-top design assumes a consistent up/down orientation; vertical flip would teach a physically-inconsistent layout
+mosaic: 1.0            # default -- standard, generally beneficial for small-object robustness
+mixup: 0.0             # deliberately off -- blending two envelope images (e.g. SAFE + TORN) risks creating a confusing, physically unrealistic hybrid example for a damage-classification task

@@ -1,0 +1,44 @@
+# AI Improvement Phase: the real training run.
+# 40 epochs (up from the prior repair's 35) on the expanded 1,888-image,
+# 7-class dataset at 128x128 (up from 390 images, 6 classes, 96x96) --
+# a genuine, meaningful step up in both data volume and class coverage.
+#
+# Augmentation values below are deliberately moderate, not maximal: this
+# project's own synthetic generator already bakes in substantial
+# per-image diversity (background, lighting, perspective, noise, blur,
+# compression -- see datasets/generator/synthetic_generator.py). Heavy
+# additional Ultralytics-side augmentation on top of already-diverse
+# synthetic images risks degrading small, precise damage-region labels
+# (a torn corner or a broken seal is a small, specific shape -- excessive
+# mosaic/rotation/translate can shear or crop it into something
+# unrecognizable) rather than helping generalization. Tuned down from
+# Ultralytics' own stock defaults (mosaic 1.0->0.8, degrees 0.0->8.0
+# turned on deliberately since viewing-angle robustness is a named goal,
+# mixup 0.0->0.05 turned on lightly) -- a considered adjustment in both
+# directions, not just "turn everything up."
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.85
+base_weights: yolov8n.pt
+image_size: 128
+epochs: 40
+batch_size: 24
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+nms_iou_threshold: 0.5
+hsv_h: 0.02
+hsv_s: 0.6
+hsv_v: 0.35
+degrees: 8.0
+translate: 0.08
+scale: 0.4
+fliplr: 0.5
+flipud: 0.0
+mosaic: 0.8
+mixup: 0.05
+seed: 20
+experiment_name: ai_improvement_full
+generator_config_used: datasets/configs/ai_improvement_phase.yaml
+runs_dir: training/runs

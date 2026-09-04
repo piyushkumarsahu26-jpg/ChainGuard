@@ -1,0 +1,15 @@
+dataset_manifest: datasets/manifest.csv
+dataset_root: datasets
+train_split: 0.85
+base_weights: yolov8n.pt
+image_size: 96
+epochs: 3
+batch_size: 16
+learning_rate: 0.01
+optimizer: auto
+weight_decay: 0.0005
+confidence_threshold: 0.25
+seed: 7
+experiment_name: repair_calibration
+generator_config_used: datasets/configs/repair_training.yaml
+runs_dir: training/runs

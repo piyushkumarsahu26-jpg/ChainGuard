@@ -1,0 +1,57 @@
+{
+  "versions": [
+    {
+      "version": "v1",
+      "createdAt": "2026-08-01T06:48:33.591691+00:00",
+      "manifestHash": "2e06f87790ed1ae9",
+      "totalImages": 30,
+      "perClassCounts": {
+        "SAFE": 5,
+        "TORN": 5,
+        "OPENED": 5,
+        "CRUSHED": 5,
+        "TAPED": 5,
+        "PARTIAL_DAMAGE": 5
+      },
+      "sourceBreakdown": {
+        "synthetic": 30
+      }
+    },
+    {
+      "version": "v2",
+      "createdAt": "2026-08-01T19:01:13.600413+00:00",
+      "manifestHash": "8b2ed37215ba0aae",
+      "totalImages": 390,
+      "perClassCounts": {
+        "SAFE": 65,
+        "TORN": 65,
+        "OPENED": 65,
+        "CRUSHED": 65,
+        "TAPED": 65,
+        "PARTIAL_DAMAGE": 65
+      },
+      "sourceBreakdown": {
+        "synthetic": 390
+      }
+    },
+    {
+      "version": "v3",
+      "createdAt": "2026-08-05T04:08:24.976796+00:00",
+      "manifestHash": "fc878b3a1f039ca4",
+      "totalImages": 1888,
+      "perClassCounts": {
+        "SAFE": 279,
+        "TORN": 279,
+        "OPENED": 279,
+        "CRUSHED": 279,
+        "TAPED": 279,
+        "PARTIAL_DAMAGE": 279,
+        "SEAL_OPEN": 214
+      },
+      "sourceBreakdown": {
+        "synthetic": 1888
+      }
+    }
+  ],
+  "currentVersion": "v3"
+}
