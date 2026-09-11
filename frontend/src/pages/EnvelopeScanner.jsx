@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 import {
   UploadCloud, X, Loader2, CheckCircle2, XCircle, RotateCcw,
   Clock, Cpu, ShieldAlert, ImageIcon, FileWarning,
@@ -97,12 +98,10 @@ export default function EnvelopeScanner() {
       try {
         const res = await envelopeService.getAll({ limit: 100 });
         if (cancelled) return;
-        // Integration Sprint 3: only a DELIVERED envelope (a real,
-        // completed transport session behind it) may be scanned -- the
-        // backend enforces this for real (envelope.service.js's scan()
-        // rejects otherwise); filtering here is just so an officer isn't
-        // offered an envelope the backend would reject anyway.
-        const items = (res.items || []).filter((e) => e.transportStatus === 'DELIVERED');
+        // Scanner receipt verification is self-contained: any registered
+        // envelope can be selected. The backend validates the QR found in
+        // this image against this exact selection before AI can run.
+        const items = res.items || [];
         setEnvelopes(items);
         if (items.length > 0) setSelectedEnvelopeId(items[0].id);
       } catch (err) {
@@ -198,7 +197,21 @@ export default function EnvelopeScanner() {
     abortControllerRef.current = controller;
 
     try {
+      // Reuse the QR Verification page's proven browser decoder. The raw
+      // content is sent to the server, where signature and ownership are
+      // verified; decoding alone is never treated as proof.
+      const qrDecoder = new Html5Qrcode('scanner-qr-decode-region');
+      let qrContent;
+      try {
+        qrContent = await qrDecoder.scanFile(file, false);
+      } catch {
+        throw new Error('No readable QR code was found in this image. AI detection was not run.');
+      } finally {
+        try { qrDecoder.clear?.(); } catch { /* decoder cleanup is best effort */ }
+      }
+
       const data = await envelopeService.scan(selectedEnvelopeId, file, {
+        qrContent,
         signal: controller.signal,
         onUploadProgress: (evt) => {
           if (!evt.total) return;
@@ -274,7 +287,7 @@ export default function EnvelopeScanner() {
             {envelopesLoading ? (
               <Skeleton className="h-10 w-full" />
             ) : envelopes.length === 0 ? (
-              <EmptyState icon={FileWarning} title="No envelopes ready to scan" description="An envelope can only be scanned once its transport is complete and marked Delivered. Complete a transport session on the Live GPS page first." />
+              <EmptyState icon={FileWarning} title="No registered envelopes" description="Create or register an envelope before scanning it." />
             ) : (
               <select
                 value={selectedEnvelopeId}
@@ -497,6 +510,7 @@ export default function EnvelopeScanner() {
           )}
         </Card>
       </div>
+      <div id="scanner-qr-decode-region" style={{ display: 'none' }} />
     </div>
   );
 }
