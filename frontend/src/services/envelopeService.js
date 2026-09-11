@@ -57,9 +57,10 @@ const envelopeService = {
    * contract, only calls it):
    *   { envelope, evidence, detections, alerts, aiProcessingTimeMs, modelVersion }
    */
-  async scan(envelopeId, file, { onUploadProgress, signal } = {}) {
+  async scan(envelopeId, file, { onUploadProgress, signal, qrContent } = {}) {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("qrContent", qrContent || "");
 
     const response = await api.post(`/envelopes/${envelopeId}/scan`, formData, {
       // The axios instance in api.js sets a default "Content-Type:

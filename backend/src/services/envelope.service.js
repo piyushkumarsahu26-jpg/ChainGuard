@@ -15,6 +15,7 @@ import { detectionService } from './detection.service.js';
 import { aiClientService } from './aiClient.service.js';
 import { sealStatusForPrediction } from '../utils/damageClass.util.js';
 import { incidentResponseService } from './incidentResponse.service.js';
+import { custodyService } from './custody.service.js';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
@@ -146,40 +147,24 @@ export const envelopeService = {
   // detectionService, custodyRepository, the transport session data
   // itself) -- this method's job is purely to connect them, not to add
   // new logic to any of them individually.
-  async scan({ envelopeId, filePath, mimetype, officerId }) {
+  async scan({ envelopeId, filePath, mimetype, officerId, qrContent }) {
     const envelope = await this.getById(envelopeId);
 
-    // The gate this sprint requires: only a DELIVERED envelope (i.e.
-    // one with a real, completed transport session behind it -- see
-    // Sprint Integration-1's schema comment on why transportStatus is
-    // its own field, distinct from sealStatus) may be scanned. Rejects
-    // early, before any Evidence/AI work happens, so a rejected scan
-    // leaves no partial trail behind it.
-    // -------------------------------------------------------------------
-    // TEMPORARY HACKATHON CHANGE
-    // Transport-status validation is temporarily disabled.
-    // Restore this check after the demo.
-    // -------------------------------------------------------------------
-    // if (envelope.transportStatus !== 'DELIVERED') {
-    //   throw ApiError.conflict(
-    //     `Envelope ${envelope.envelopeCode} cannot be scanned yet -- its transport status is ${envelope.transportStatus}, not DELIVERED. Complete its transport session first.`
-    //   );
-    // }
-    // Phase 8 (Architectural Integration sprint): "QR Verification MUST
-    // happen first... AI Scanner must never become the first
-    // verification step." transportStatus === DELIVERED alone doesn't
-    // prove this -- an envelope's transport can complete without anyone
-    // ever having scanned its QR at the destination (e.g. a delivery
-    // that auto-completed via GPS reaching the end of its route, with
-    // no receiving officer having verified it yet). qrVerifiedAt is the
-    // real flag custody.service.js's verifyByQr() sets specifically
-    // when a real QR verification succeeds -- checked directly here,
-    // not inferred.
-    if (!envelope.qrVerifiedAt) {
-      throw ApiError.conflict(
-        `Envelope ${envelope.envelopeCode} cannot be AI-scanned yet -- its QR must be verified at receipt first.`
-      );
+    // QR verification is deliberately part of this operation. Do not
+    // replace this with a check of a previous qrVerifiedAt value: the
+    // uploaded image must yield a real QR which verifies cryptographically
+    // and resolves to this selected envelope before Evidence or AI work.
+    if (!qrContent) {
+      throw ApiError.badRequest('A readable QR code in the uploaded envelope image is required before AI detection can run.');
     }
+    const qrVerification = await custodyService.verifyByQr(qrContent, {
+      actorId: officerId,
+      location: envelope.center,
+      scanningCentre: envelope.center,
+      scanningSubject: envelope.subject,
+      expectedEnvelopeId: envelopeId,
+      completeActiveTransport: false,
+    });
 
     // Auto-preload transport context (officer, vehicle, timestamp,
     // location) from real, existing data -- exactly what this sprint
@@ -317,6 +302,7 @@ export const envelopeService = {
 
     return {
       envelope: updatedEnvelope,
+      qrVerification,
       evidence,
       detections: createdDetections,
       alerts: createdAlerts,
