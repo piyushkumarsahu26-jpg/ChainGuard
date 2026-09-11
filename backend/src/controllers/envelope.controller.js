@@ -17,7 +17,6 @@ export const scanEnvelope = asyncHandler(async (req, res) => {
     filePath: req.file.path,
     mimetype: req.file.mimetype,
     officerId: req.user.id,
-    qrContent: req.body.qrContent,
   });
   sendSuccess(res, { data: result, message: `Scan complete: ${result.detections.length} finding(s)` });
 });
