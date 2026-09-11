@@ -15,7 +15,6 @@ import { detectionService } from './detection.service.js';
 import { aiClientService } from './aiClient.service.js';
 import { sealStatusForPrediction } from '../utils/damageClass.util.js';
 import { incidentResponseService } from './incidentResponse.service.js';
-import { custodyService } from './custody.service.js';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
@@ -147,24 +146,13 @@ export const envelopeService = {
   // detectionService, custodyRepository, the transport session data
   // itself) -- this method's job is purely to connect them, not to add
   // new logic to any of them individually.
-  async scan({ envelopeId, filePath, mimetype, officerId, qrContent }) {
+  async scan({ envelopeId, filePath, mimetype, officerId }) {
     const envelope = await this.getById(envelopeId);
 
-    // QR verification is deliberately part of this operation. Do not
-    // replace this with a check of a previous qrVerifiedAt value: the
-    // uploaded image must yield a real QR which verifies cryptographically
-    // and resolves to this selected envelope before Evidence or AI work.
-    if (!qrContent) {
-      throw ApiError.badRequest('A readable QR code in the uploaded envelope image is required before AI detection can run.');
-    }
-    const qrVerification = await custodyService.verifyByQr(qrContent, {
-      actorId: officerId,
-      location: envelope.center,
-      scanningCentre: envelope.center,
-      scanningSubject: envelope.subject,
-      expectedEnvelopeId: envelopeId,
-      completeActiveTransport: false,
-    });
+    // AI inspection is intentionally independent of QR receipt and
+    // transport workflows. Authentication/authorization is enforced by
+    // the route, and this lookup confirms the selected envelope exists;
+    // the uploaded image then goes directly to the existing AI pipeline.
 
     // Auto-preload transport context (officer, vehicle, timestamp,
     // location) from real, existing data -- exactly what this sprint
@@ -302,7 +290,6 @@ export const envelopeService = {
 
     return {
       envelope: updatedEnvelope,
-      qrVerification,
       evidence,
       detections: createdDetections,
       alerts: createdAlerts,

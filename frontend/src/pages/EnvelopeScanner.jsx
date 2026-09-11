@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import {
   UploadCloud, X, Loader2, CheckCircle2, XCircle, RotateCcw,
   Clock, Cpu, ShieldAlert, ImageIcon, FileWarning,
@@ -197,21 +196,7 @@ export default function EnvelopeScanner() {
     abortControllerRef.current = controller;
 
     try {
-      // Reuse the QR Verification page's proven browser decoder. The raw
-      // content is sent to the server, where signature and ownership are
-      // verified; decoding alone is never treated as proof.
-      const qrDecoder = new Html5Qrcode('scanner-qr-decode-region');
-      let qrContent;
-      try {
-        qrContent = await qrDecoder.scanFile(file, false);
-      } catch {
-        throw new Error('No readable QR code was found in this image. AI detection was not run.');
-      } finally {
-        try { qrDecoder.clear?.(); } catch { /* decoder cleanup is best effort */ }
-      }
-
       const data = await envelopeService.scan(selectedEnvelopeId, file, {
-        qrContent,
         signal: controller.signal,
         onUploadProgress: (evt) => {
           if (!evt.total) return;
@@ -510,7 +495,6 @@ export default function EnvelopeScanner() {
           )}
         </Card>
       </div>
-      <div id="scanner-qr-decode-region" style={{ display: 'none' }} />
     </div>
   );
 }

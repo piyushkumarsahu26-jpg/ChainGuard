@@ -426,18 +426,8 @@ export const custodyService = {
   // new, optional parameter (mirrors latitude/longitude, already
   // optional) -- omitting it just skips the wrong-centre check, not an
   // error.
-  async verifyByQr(rawContent, { actorId, location, latitude, longitude, scanningState, scanningCity, scanningCentre, scanningSubject, expectedEnvelopeId, completeActiveTransport = true } = {}) {
+  async verifyByQr(rawContent, { actorId, location, latitude, longitude, scanningState, scanningCity, scanningCentre, scanningSubject } = {}) {
     const { envelope, decoded, history } = await resolveQrOrThrow(rawContent, { actorId, location });
-
-    // The Envelope Scanner supplies the envelope selected by the officer.
-    // Check it immediately after cryptographic/registered-envelope
-    // resolution and before any receipt mutation.  A real QR for a
-    // *different* envelope is not a valid scan of the selected one.
-    if (expectedEnvelopeId && envelope.id !== expectedEnvelopeId) {
-      throw ApiError.conflict(
-        `QR belongs to envelope ${envelope.envelopeCode}, not the selected envelope. AI detection was not run.`
-      );
-    }
 
     // Phase 4: verifying is the primary "scan" action from a user's
     // perspective even though it doesn't log its own custody event --
@@ -468,12 +458,7 @@ export const custodyService = {
     // delivery (reuses gps.service.js's real stopTransport(), not a
     // duplicate), and mark this envelope's QR as genuinely verified --
     // the exact flag Phase 8's AI-scanner gate will check.
-    // Receipt verification on the dedicated QR page retains its existing
-    // behaviour. The Envelope Scanner verifies authenticity but must not
-    // manufacture a delivery or replace the GPS workflow.
-    const transportResult = completeActiveTransport
-      ? await completeTransportIfActive(envelope)
-      : { transportJustCompleted: false };
+    const transportResult = await completeTransportIfActive(envelope);
     let updatedEnvelope = envelope;
     if (!envelope.qrVerifiedAt) {
       updatedEnvelope = await envelopeRepository.update(envelope.id, { qrVerifiedAt: new Date() });
